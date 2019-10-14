@@ -1,85 +1,108 @@
 require("dotenv").config();
-const ethers = require("ethers");
+const chalk = require("chalk");
 const { note, JoinSplitProof } = require("aztec.js");
+const { ethOptions, contractAddresses, getAccount, erc20 } = require("./helper");
 
-const { ROPSTEN_MNEMONIC } = process.env;
+const { RINKEBY_MNEMONIC_BOB, RINKEBY_MNEMONIC_ALICE } = process.env;
 
-const abis = {
-  erc20: [
-    "function balanceOf(address owner) view returns (uint)",
-    "function transfer(address to, uint amount)",
-    "function mint(address addr, uint amount)",
-    "function approve(address spender, uint256 value) external returns (bool)",
-    "event Transfer(address indexed from, address indexed to, uint amount)"
-  ],
-  ace: [
-    "function publicApprove(address _registryOwner, bytes32 _proofHash, uint256 _value)"
-  ],
-  zkAsset: [
-    "function confidentialTransfer(bytes _proofData, bytes _signatures) public"
-  ]
-};
+let depositeNotes = [];
+let bob = null;
+let alice = null;
 
-const rinkeby = {
-  name: "rinkeby",
-  id: 4
-};
+async function initAccounts() {
+  console.log(chalk.green("Initing accounts"));
 
-const provider = ethers.getDefaultProvider(rinkeby.name);
-const wallet = ethers.Wallet.fromMnemonic(ROPSTEN_MNEMONIC).connect(provider);
+  bob = await getAccount(RINKEBY_MNEMONIC_BOB);
+  alice = await getAccount(RINKEBY_MNEMONIC_ALICE);
 
-const ERC20Mintable = "0xaa161FA77204c5fb0199026051ec781E64AD1217";
-const ACE = "0xA3D1E4e451AB20EA33Dc0790b78fb666d66A650D";
-const ZkAsset = "0x89Fd81Eb57C54683B7d6bd518049f067046115C5";
+  console.log(`bob's address: ${bob.address}`);
+  console.log(`alice's address: ${alice.address}`);
+}
 
-const erc20Mntable = new ethers.Contract(ERC20Mintable, abis.erc20, provider);
-const ace = new ethers.Contract(ACE, abis.ace, provider);
-const zkAsset = new ethers.Contract(ZkAsset, abis.zkAsset, provider);
-
-(async function start() {
-  const erc20signer = erc20Mntable.connect(wallet);
-  const zkAssetSigner = zkAsset.connect(wallet);
-  const aceSigner = ace.connect(wallet);
-  const accountAddr = await wallet.getAddress();
-
-  console.log(`account address: ${accountAddr}`);
-  const tx = await erc20signer.mint(accountAddr, 10000);
+async function mint() {
+  const mintValue = 200000;
+  console.log(chalk.green(`Minting ${mintValue} to Bob`));
+  const tx = await bob.signers.erc20.mint(bob.address, mintValue);
   await tx.wait();
+}
 
-  const publicKey = wallet.signingKey.publicKey;
-  const value = 10;
+async function deposite() {
+  const depositeValue = 100000;
+  console.log(chalk.green(`Deposite ${depositeValue} from Bob's public erc20 to a aztec note`));
 
-  console.log(`executing erc20signer.approve(ACE_ADDRESS, ${value}})`);
-  await (await erc20signer.approve(ACE, value)).wait();
+  console.log(`executing bob.signers.erc20.approve()`);
+  await (await bob.signers.erc20.approve(contractAddresses.ace, depositeValue)).wait();
 
-  const settlementNote = await note.create(publicKey, value);
-  const proof = new JoinSplitProof(
-    [],
-    [settlementNote],
-    accountAddr,
-    value * -1,
-    accountAddr
-  );
-  const data = proof.encodeABI(ZkAsset);
-  const signatures = proof.constructSignatures(ZkAsset, []);
+  const settlementNote = await note.create(bob.publicKey, depositeValue);
+  depositeNotes = [settlementNote];
+  const proof = new JoinSplitProof([], depositeNotes, bob.address, depositeValue * -1, bob.address);
+  const data = proof.encodeABI(contractAddresses.zkAsset);
+  const signatures = proof.constructSignatures(contractAddresses.zkAsset, []);
 
-  const prevBalance = await erc20Mntable.balanceOf(accountAddr);
+  const prevBalance = await erc20.balanceOf(bob.address);
   console.log(`prevBalance: ${prevBalance.toString()}`);
 
-  console.log(
-    `executing ace.publicApprove(ZK_ASSET_ADDRESS, ${proof.hash}, ${value})`
-  );
-  await (await aceSigner.publicApprove(ZkAsset, proof.hash, value)).wait();
-
-  console.log(
-    `executing zkAssetSigner.confidentialTransfer(${data}, ${signatures})`
-  );
-  let overrides = {
-    gasLimit: 750000
-  };
-  await (await zkAssetSigner.confidentialTransfer(
-    data,
-    signatures,
-    overrides
+  console.log(`executing ace.publicApprove(ZK_ASSET_ADDRESS, ${proof.hash}, ${depositeValue})`);
+  await (await bob.signers.ace.publicApprove(
+    contractAddresses.zkAsset,
+    proof.hash,
+    depositeValue
   )).wait();
+
+  console.log(`executing zkAssetSigner.confidentialTransfer()`);
+  await (await bob.signers.zkAsset.confidentialTransfer(data, signatures, ethOptions)).wait();
+}
+
+async function transferFromBobToAlice() {
+  const newValues = [20000, 80000];
+  const msg =
+    `Split note to note A with ${newValues[0]} value & ` + `note B with ${newValues[1]} value`;
+  console.log(chalk.green(msg));
+
+  const noteA = await note.create(bob.publicKey, newValues[0]);
+  const noteB = await note.create(alice.publicKey, newValues[1]);
+  const transferProof = new JoinSplitProof(
+    depositeNotes,
+    [noteA, noteB],
+    bob.address,
+    0,
+    bob.address
+  );
+  const transferData = transferProof.encodeABI(contractAddresses.zkAsset);
+  const transferSignatures = transferProof.constructSignatures(contractAddresses.zkAsset, [
+    bob.aztecAccount
+  ]);
+
+  console.log("executing transfer: zkAssetSigner.confidentialTransfer()");
+  await (await bob.signers.zkAsset.confidentialTransfer(
+    transferData,
+    transferSignatures,
+    ethOptions
+  )).wait();
+}
+
+async function withdraw() {
+  console.log(chalk.green("Executing withdraw"));
+  const withdrawValue = 100;
+  const noteC = await note.create(alice.publicKey, newValues[0] - withdrawValue);
+  const withdrawProof = new JoinSplitProof([noteB], [noteC], withdrawValue, alice.address);
+  const withdrawData = withdrawProof.encodeABI(contractAddresses.zkAsset);
+  const withdrawSignatures = proof.constructSignatures(contractAddresses.zkAsset, [
+    aliceWallet.privateKey
+  ]);
+
+  console.log("executing withdraw: zkAssetSigner.confidentialTransfer()");
+  await (await alice.signers.confidentialTransfer(
+    withdrawData,
+    withdrawSignatures,
+    ethOptions
+  )).wait();
+}
+
+(async function start() {
+  await initAccounts();
+  await mint();
+  await deposite();
+  await transferFromBobToAlice();
+  await withdraw();
 })();
