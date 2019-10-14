@@ -68,15 +68,15 @@ async function transferFromBobToAlice() {
   const noteB = await note.create(alice.publicKey, splitValues[1]);
   transferNotes = [noteA, noteB];
   const transferProof = new JoinSplitProof(
-    [...depositNotes],
-    [noteA, noteB],
+    depositNotes,
+    transferNotes,
     bob.address,
     0,
     bob.address
   );
-  // console.log(bob.wallet.privateKey, bob.aztecAccount.privateKey);
-  const transferSignatures = transferProof.constructSignatures(contractAddresses.zkAsset, [bob.aztecAccount]);
+  
   const transferData = transferProof.encodeABI(contractAddresses.zkAsset);
+  const transferSignatures = transferProof.constructSignatures(contractAddresses.zkAsset, [bob.aztecAccount]);
 
   console.log("- executing transfer: zkAssetSigner.confidentialTransfer()");
 
@@ -99,10 +99,10 @@ async function withdraw() {
     withdrawValue,
     alice.address
   );
+  const withdrawData = withdrawProof.encodeABI(contractAddresses.zkAsset);
   const withdrawSignatures = withdrawProof.constructSignatures(contractAddresses.zkAsset, [
     alice.aztecAccount
   ]);
-  const withdrawData = withdrawProof.encodeABI(contractAddresses.zkAsset);
 
   console.log("- executing withdraw: zkAssetSigner.confidentialTransfer()");
   await (await alice.signers.zkAsset.confidentialTransfer(
