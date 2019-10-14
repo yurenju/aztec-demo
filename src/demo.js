@@ -7,6 +7,7 @@ const { RINKEBY_MNEMONIC_BOB, RINKEBY_MNEMONIC_ALICE } = process.env;
 const splitValues = [20, 80];
 
 let depositNotes = [];
+let transferNotes = [];
 let bob = null;
 let alice = null;
 
@@ -65,9 +66,10 @@ async function transferFromBobToAlice() {
 
   const noteA = await note.create(bob.publicKey, splitValues[0]);
   const noteB = await note.create(alice.publicKey, splitValues[1]);
+  transferNotes = [noteA, noteB];
   const transferProof = new JoinSplitProof(
     depositNotes,
-    [noteA, noteB],
+    transferNotes,
     bob.address,
     0,
     bob.address
@@ -88,15 +90,16 @@ async function transferFromBobToAlice() {
 async function withdraw() {
   console.log(chalk.green("Executing withdraw"));
   const withdrawValue = 10;
+  const [, noteB] = transferNotes;
   const noteC = await note.create(alice.publicKey, splitValues[0] - withdrawValue);
   const withdrawProof = new JoinSplitProof([noteB], [noteC], withdrawValue, alice.address);
   const withdrawData = withdrawProof.encodeABI(contractAddresses.zkAsset);
   const withdrawSignatures = proof.constructSignatures(contractAddresses.zkAsset, [
-    aliceWallet.privateKey
+    alice.aztecAccount
   ]);
 
   console.log("- executing withdraw: zkAssetSigner.confidentialTransfer()");
-  await (await alice.signers.confidentialTransfer(
+  await (await alice.signers.zkAsset.confidentialTransfer(
     withdrawData,
     withdrawSignatures,
     ethOptions
