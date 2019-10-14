@@ -6,7 +6,7 @@ const { ethOptions, contractAddresses, getAccount, erc20 } = require("./helper")
 const { RINKEBY_MNEMONIC_BOB, RINKEBY_MNEMONIC_ALICE } = process.env;
 const splitValues = [20, 80];
 
-let depositeNotes = [];
+let depositNotes = [];
 let bob = null;
 let alice = null;
 
@@ -27,27 +27,27 @@ async function mint() {
   await tx.wait();
 }
 
-async function deposite() {
-  const depositeValue = 100;
-  console.log(chalk.green(`Deposite ${depositeValue} from Bob's public erc20 to a aztec note`));
+async function deposit() {
+  const depositValue = 100;
+  console.log(chalk.green(`Deposit ${depositValue} from Bob's public erc20 to a aztec note`));
 
   console.log(`- executing bob.signers.erc20.approve()`);
-  await (await bob.signers.erc20.approve(contractAddresses.ace, depositeValue)).wait();
+  await (await bob.signers.erc20.approve(contractAddresses.ace, depositValue)).wait();
 
-  const depositeNote = await note.create(bob.publicKey, depositeValue);
-  depositeNotes = [depositeNote];
-  const proof = new JoinSplitProof([], depositeNotes, bob.address, depositeValue * -1, bob.address);
+  const depositNote = await note.create(bob.publicKey, depositValue);
+  depositNotes = [depositNote];
+  const proof = new JoinSplitProof([], depositNotes, bob.address, depositValue * -1, bob.address);
   const data = proof.encodeABI(contractAddresses.zkAsset);
   const signatures = proof.constructSignatures(contractAddresses.zkAsset, []);
 
   const prevBalance = await erc20.balanceOf(bob.address);
   console.log(`- prevBalance: ${prevBalance.toString()}`);
 
-  console.log(`- executing ace.publicApprove(ZK_ASSET_ADDRESS, ${proof.hash}, ${depositeValue})`);
+  console.log(`- executing ace.publicApprove(ZK_ASSET_ADDRESS, ${proof.hash}, ${depositValue})`);
   await (await bob.signers.ace.publicApprove(
     contractAddresses.zkAsset,
     proof.hash,
-    depositeValue
+    depositValue
   )).wait();
 
   console.log(`- executing zkAssetSigner.confidentialTransfer()`);
@@ -66,7 +66,7 @@ async function transferFromBobToAlice() {
   const noteA = await note.create(bob.publicKey, splitValues[0]);
   const noteB = await note.create(alice.publicKey, splitValues[1]);
   const transferProof = new JoinSplitProof(
-    depositeNotes,
+    depositNotes,
     [noteA, noteB],
     bob.address,
     0,
@@ -106,7 +106,7 @@ async function withdraw() {
 (async function start() {
   await initAccounts();
   await mint();
-  await deposite();
+  await deposit();
   await transferFromBobToAlice();
   await withdraw();
 })();
