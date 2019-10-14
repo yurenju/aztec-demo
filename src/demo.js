@@ -92,7 +92,13 @@ async function withdraw() {
   const withdrawValue = 10;
   const [, noteB] = transferNotes;
   const noteC = await note.create(alice.publicKey, splitValues[0] - withdrawValue);
-  const withdrawProof = new JoinSplitProof([noteB], [noteC], withdrawValue, alice.address);
+  const withdrawProof = new JoinSplitProof(
+    [noteB],
+    [noteC],
+    alice.address,
+    withdrawValue,
+    alice.address
+  );
   const withdrawData = withdrawProof.encodeABI(contractAddresses.zkAsset);
   const withdrawSignatures = proof.constructSignatures(contractAddresses.zkAsset, [
     alice.aztecAccount
