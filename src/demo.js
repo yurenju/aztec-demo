@@ -4,6 +4,7 @@ const { note, JoinSplitProof } = require("aztec.js");
 const { ethOptions, contractAddresses, getAccount, erc20 } = require("./helper");
 
 const { RINKEBY_MNEMONIC_BOB, RINKEBY_MNEMONIC_ALICE } = process.env;
+const splitValues = [20, 80];
 
 let depositeNotes = [];
 let bob = null;
@@ -15,52 +16,55 @@ async function initAccounts() {
   bob = await getAccount(RINKEBY_MNEMONIC_BOB);
   alice = await getAccount(RINKEBY_MNEMONIC_ALICE);
 
-  console.log(`bob's address: ${bob.address}`);
-  console.log(`alice's address: ${alice.address}`);
+  console.log(`- bob's address: ${bob.address}`);
+  console.log(`- alice's address: ${alice.address}`);
 }
 
 async function mint() {
-  const mintValue = 200000;
+  const mintValue = 200;
   console.log(chalk.green(`Minting ${mintValue} to Bob`));
   const tx = await bob.signers.erc20.mint(bob.address, mintValue);
   await tx.wait();
 }
 
 async function deposite() {
-  const depositeValue = 100000;
+  const depositeValue = 100;
   console.log(chalk.green(`Deposite ${depositeValue} from Bob's public erc20 to a aztec note`));
 
-  console.log(`executing bob.signers.erc20.approve()`);
+  console.log(`- executing bob.signers.erc20.approve()`);
   await (await bob.signers.erc20.approve(contractAddresses.ace, depositeValue)).wait();
 
-  const settlementNote = await note.create(bob.publicKey, depositeValue);
-  depositeNotes = [settlementNote];
+  const depositeNote = await note.create(bob.publicKey, depositeValue);
+  depositeNotes = [depositeNote];
   const proof = new JoinSplitProof([], depositeNotes, bob.address, depositeValue * -1, bob.address);
   const data = proof.encodeABI(contractAddresses.zkAsset);
   const signatures = proof.constructSignatures(contractAddresses.zkAsset, []);
 
   const prevBalance = await erc20.balanceOf(bob.address);
-  console.log(`prevBalance: ${prevBalance.toString()}`);
+  console.log(`- prevBalance: ${prevBalance.toString()}`);
 
-  console.log(`executing ace.publicApprove(ZK_ASSET_ADDRESS, ${proof.hash}, ${depositeValue})`);
+  console.log(`- executing ace.publicApprove(ZK_ASSET_ADDRESS, ${proof.hash}, ${depositeValue})`);
   await (await bob.signers.ace.publicApprove(
     contractAddresses.zkAsset,
     proof.hash,
     depositeValue
   )).wait();
 
-  console.log(`executing zkAssetSigner.confidentialTransfer()`);
+  console.log(`- executing zkAssetSigner.confidentialTransfer()`);
   await (await bob.signers.zkAsset.confidentialTransfer(data, signatures, ethOptions)).wait();
+
+  const currBalance = await erc20.balanceOf(bob.address);
+  console.log(`- currBalance: ${currBalance.toString()}`);
 }
 
 async function transferFromBobToAlice() {
-  const newValues = [20000, 80000];
   const msg =
-    `Split note to note A with ${newValues[0]} value & ` + `note B with ${newValues[1]} value`;
+    `Split note to note A with ${splitValues[0]} value for bob & ` +
+    `note B with ${splitValues[1]} value for alice`;
   console.log(chalk.green(msg));
 
-  const noteA = await note.create(bob.publicKey, newValues[0]);
-  const noteB = await note.create(alice.publicKey, newValues[1]);
+  const noteA = await note.create(bob.publicKey, splitValues[0]);
+  const noteB = await note.create(alice.publicKey, splitValues[1]);
   const transferProof = new JoinSplitProof(
     depositeNotes,
     [noteA, noteB],
@@ -73,7 +77,7 @@ async function transferFromBobToAlice() {
     bob.aztecAccount
   ]);
 
-  console.log("executing transfer: zkAssetSigner.confidentialTransfer()");
+  console.log("- executing transfer: zkAssetSigner.confidentialTransfer()");
   await (await bob.signers.zkAsset.confidentialTransfer(
     transferData,
     transferSignatures,
@@ -83,15 +87,15 @@ async function transferFromBobToAlice() {
 
 async function withdraw() {
   console.log(chalk.green("Executing withdraw"));
-  const withdrawValue = 100;
-  const noteC = await note.create(alice.publicKey, newValues[0] - withdrawValue);
+  const withdrawValue = 10;
+  const noteC = await note.create(alice.publicKey, splitValues[0] - withdrawValue);
   const withdrawProof = new JoinSplitProof([noteB], [noteC], withdrawValue, alice.address);
   const withdrawData = withdrawProof.encodeABI(contractAddresses.zkAsset);
   const withdrawSignatures = proof.constructSignatures(contractAddresses.zkAsset, [
     aliceWallet.privateKey
   ]);
 
-  console.log("executing withdraw: zkAssetSigner.confidentialTransfer()");
+  console.log("- executing withdraw: zkAssetSigner.confidentialTransfer()");
   await (await alice.signers.confidentialTransfer(
     withdrawData,
     withdrawSignatures,
