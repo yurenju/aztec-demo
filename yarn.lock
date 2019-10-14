@@ -66,6 +66,11 @@ aztec.js@^0.14.0-beta.0:
     ethereumjs-util "^6.1.0"
     web3-utils "1.0.0-beta.55"
 
+babel-node@^0.0.1-security:
+  version "0.0.1-security"
+  resolved "https://registry.yarnpkg.com/babel-node/-/babel-node-0.0.1-security.tgz#cbff6d9e7a2acb4065c1839c234d5c57091d7217"
+  integrity sha512-zF3D9H2FA2xrP+B/X462G+38aHpmR+33jBF7NowfPuV4CiPEzAR1Typ1RC+qPfe0vCeWeV0FLG2pfVGb0vIfeg==
+
 bindings@^1.2.1, bindings@^1.5.0:
   version "1.5.0"
   resolved "https://registry.yarnpkg.com/bindings/-/bindings-1.5.0.tgz#10353c9e945334bc0511a6d90b38fbc7c9c504df"

@@ -68,18 +68,18 @@ async function transferFromBobToAlice() {
   const noteB = await note.create(alice.publicKey, splitValues[1]);
   transferNotes = [noteA, noteB];
   const transferProof = new JoinSplitProof(
-    depositNotes,
-    transferNotes,
+    [...depositNotes],
+    [noteA, noteB],
     bob.address,
     0,
     bob.address
   );
+  // console.log(bob.wallet.privateKey, bob.aztecAccount.privateKey);
+  const transferSignatures = transferProof.constructSignatures(contractAddresses.zkAsset, [bob.aztecAccount]);
   const transferData = transferProof.encodeABI(contractAddresses.zkAsset);
-  const transferSignatures = transferProof.constructSignatures(contractAddresses.zkAsset, [
-    bob.aztecAccount
-  ]);
 
   console.log("- executing transfer: zkAssetSigner.confidentialTransfer()");
+
   await (await bob.signers.zkAsset.confidentialTransfer(
     transferData,
     transferSignatures,
@@ -91,7 +91,7 @@ async function withdraw() {
   console.log(chalk.green("Executing withdraw"));
   const withdrawValue = 10;
   const [, noteB] = transferNotes;
-  const noteC = await note.create(alice.publicKey, splitValues[0] - withdrawValue);
+  const noteC = await note.create(alice.publicKey, splitValues[1] - withdrawValue);
   const withdrawProof = new JoinSplitProof(
     [noteB],
     [noteC],
@@ -99,10 +99,10 @@ async function withdraw() {
     withdrawValue,
     alice.address
   );
-  const withdrawData = withdrawProof.encodeABI(contractAddresses.zkAsset);
-  const withdrawSignatures = proof.constructSignatures(contractAddresses.zkAsset, [
+  const withdrawSignatures = withdrawProof.constructSignatures(contractAddresses.zkAsset, [
     alice.aztecAccount
   ]);
+  const withdrawData = withdrawProof.encodeABI(contractAddresses.zkAsset);
 
   console.log("- executing withdraw: zkAssetSigner.confidentialTransfer()");
   await (await alice.signers.zkAsset.confidentialTransfer(
