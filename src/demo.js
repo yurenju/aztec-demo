@@ -74,9 +74,11 @@ async function transferFromBobToAlice() {
     0,
     bob.address
   );
-  
+
   const transferData = transferProof.encodeABI(contractAddresses.zkAsset);
-  const transferSignatures = transferProof.constructSignatures(contractAddresses.zkAsset, [bob.aztecAccount]);
+  const transferSignatures = transferProof.constructSignatures(contractAddresses.zkAsset, [
+    bob.aztecAccount
+  ]);
 
   console.log("- executing transfer: zkAssetSigner.confidentialTransfer()");
 

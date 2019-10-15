@@ -34,13 +34,14 @@ const erc20 = new ethers.Contract(contractAddresses.erc20, abis.erc20, ethersPro
 // NOTE the JoinSplitProof gas cost scales with the number of input and output notes
 // a typical JoinSplit proof with 2 input and 2 output notes costs ~900,000 gas reducing to ~200,000 at the instanbul
 // hard fork
-// 
+//
 const ethOptions = {
   gasLimit: 1000000
 };
 
 async function getAccount(mnemonic) {
-  const wallet = ethers.Wallet.fromMnemonic(mnemonic).connect(ethersProvider); const address = await wallet.getAddress();
+  const wallet = ethers.Wallet.fromMnemonic(mnemonic).connect(ethersProvider);
+  const address = await wallet.getAddress();
   return {
     address,
     wallet,
